@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Literal
+from typing import Literal, Optional
 
 from pydantic import BaseModel, Field
 
@@ -21,12 +21,12 @@ class RunMetadata(BaseModel):
     input_type: InputType = "rsem_expected_counts"
     created_at: datetime
     updated_at: datetime
-    sample_sheet_name: str | None = None
-    count_matrix_name: str | None = None
+    sample_sheet_name: Optional[str] = None
+    count_matrix_name: Optional[str] = None
     uploaded_files: list[str] = Field(default_factory=list)
     available_groups: list[str] = Field(default_factory=list)
     selected_groups: list[str] = Field(default_factory=list)
     logs: list[str] = Field(default_factory=list)
     artifacts: list[str] = Field(default_factory=list)
-    error: str | None = None
-    job_id: str | None = None
+    error: Optional[str] = None
+    job_id: Optional[str] = None

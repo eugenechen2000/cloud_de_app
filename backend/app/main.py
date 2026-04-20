@@ -204,14 +204,33 @@ def start_run(run_id: str, req: StartRunRequest) -> StartRunResponse:
 
     if meta.status not in {"uploaded", "failed", "completed"}:
         raise HTTPException(status_code=400, detail=f"Run status {meta.status} cannot be started")
+    if req.max_labels < 0 or req.max_labels > 200:
+        raise HTTPException(status_code=400, detail="max_labels must be between 0 and 200")
 
     if RUN_INLINE:
-        process_run_job(run_id=run_id, group_a=req.group_a, group_b=req.group_b)
+        process_run_job(
+            run_id=run_id,
+            group_a=req.group_a,
+            group_b=req.group_b,
+            label_significant_genes=req.label_significant_genes,
+            max_labels=req.max_labels,
+            run_gsea=req.run_gsea,
+            prepare_cibersortx=req.prepare_cibersortx,
+        )
         meta = load_metadata(run_id)
         return StartRunResponse(run_id=run_id, status=meta.status, job_id=None)
 
     q = get_queue()
-    job = q.enqueue("worker.jobs.process_run_job", run_id=run_id, group_a=req.group_a, group_b=req.group_b)
+    job = q.enqueue(
+        "worker.jobs.process_run_job",
+        run_id=run_id,
+        group_a=req.group_a,
+        group_b=req.group_b,
+        label_significant_genes=req.label_significant_genes,
+        max_labels=req.max_labels,
+        run_gsea=req.run_gsea,
+        prepare_cibersortx=req.prepare_cibersortx,
+    )
     meta.status = "queued"
     meta.job_id = job.id
     meta.error = None

@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import re
 import subprocess
 from pathlib import Path
+from typing import Optional
 
 from shared.run_store import (
     append_log,
@@ -23,7 +25,13 @@ from worker.parser import (
 )
 
 
-def _select_records(records: list[SampleRecord], group_a: str | None, group_b: str | None) -> tuple[list[SampleRecord], str, str]:
+def _safe_prefix(text: str) -> str:
+    x = re.sub(r"[^A-Za-z0-9._-]+", "_", text.strip())
+    x = re.sub(r"_+", "_", x).strip("_.-")
+    return x or "project"
+
+
+def _select_records(records: list[SampleRecord], group_a: Optional[str], group_b: Optional[str]) -> tuple[list[SampleRecord], str, str]:
     groups = sorted({r.group for r in records})
     if group_a is None or group_b is None:
         if len(groups) != 2:
@@ -46,7 +54,7 @@ def _select_records(records: list[SampleRecord], group_a: str | None, group_b: s
     return selected, group_a, group_b
 
 
-def _select_group_records(records: list[GroupRecord], group_a: str | None, group_b: str | None) -> tuple[list[GroupRecord], str, str]:
+def _select_group_records(records: list[GroupRecord], group_a: Optional[str], group_b: Optional[str]) -> tuple[list[GroupRecord], str, str]:
     groups = sorted({r.group for r in records})
     if group_a is None or group_b is None:
         if len(groups) != 2:
@@ -85,7 +93,15 @@ def _upload_artifacts_for_run(run_id: str, artifacts_dir: Path) -> list[str]:
     return names
 
 
-def run_pipeline(run_id: str, group_a: str | None = None, group_b: str | None = None) -> None:
+def run_pipeline(
+    run_id: str,
+    group_a: Optional[str] = None,
+    group_b: Optional[str] = None,
+    label_significant_genes: bool = False,
+    max_labels: int = 25,
+    run_gsea: bool = True,
+    prepare_cibersortx: bool = True,
+) -> None:
     meta = load_metadata(run_id)
     dirs = ensure_run_dirs(run_id)
     meta.status = "running"
@@ -124,6 +140,16 @@ def run_pipeline(run_id: str, group_a: str | None = None, group_b: str | None = 
         save_metadata(meta)
 
         append_log(run_id, f"Count matrix ready: samples={n_samples}, genes={n_genes}")
+        append_log(
+            run_id,
+            f"Volcano labels: enabled={label_significant_genes}, max_labels={max_labels}",
+        )
+        append_log(
+            run_id,
+            f"GSEA: enabled={run_gsea}; CIBERSORTx prep: enabled={prepare_cibersortx}",
+        )
+        file_prefix = _safe_prefix(meta.project_id)
+        append_log(run_id, f"Artifact filename prefix: {file_prefix}")
 
         script = Path(__file__).resolve().parent / "r" / "deseq2_two_group.R"
         cmd = [
@@ -137,6 +163,16 @@ def run_pipeline(run_id: str, group_a: str | None = None, group_b: str | None = 
             group_b,
             "--out-dir",
             str(dirs["artifacts"]),
+            "--label-significant-genes",
+            "true" if label_significant_genes else "false",
+            "--max-labels",
+            str(max_labels),
+            "--file-prefix",
+            file_prefix,
+            "--run-gsea",
+            "true" if run_gsea else "false",
+            "--prepare-cibersortx",
+            "true" if prepare_cibersortx else "false",
         ]
         append_log(run_id, "Running DESeq2")
         proc = subprocess.run(cmd, capture_output=True, text=True, check=False)

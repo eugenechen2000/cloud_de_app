@@ -3,6 +3,7 @@ from __future__ import annotations
 import io
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Optional
 
 import boto3
 from botocore.client import BaseClient
@@ -22,16 +23,16 @@ from shared.config import (
 @dataclass
 class StorageBackend:
     mode: str  # "local" or "s3"
-    bucket: str | None
+    bucket: Optional[str]
     prefix: str
     root: Path
-    s3: BaseClient | None
+    s3: Optional[BaseClient]
 
     def key(self, rel_path: str) -> str:
         rel = rel_path.lstrip("/")
         return f"{self.prefix}/{rel}" if self.prefix else rel
 
-    def put_bytes(self, rel_path: str, data: bytes, content_type: str | None = None) -> None:
+    def put_bytes(self, rel_path: str, data: bytes, content_type: Optional[str] = None) -> None:
         if self.mode == "local":
             path = self.root / rel_path
             path.parent.mkdir(parents=True, exist_ok=True)
@@ -91,7 +92,7 @@ class StorageBackend:
             return
         self.s3.download_file(self.bucket, self.key(rel_path), str(local_path))
 
-    def upload_from(self, local_path: Path, rel_path: str, content_type: str | None = None) -> None:
+    def upload_from(self, local_path: Path, rel_path: str, content_type: Optional[str] = None) -> None:
         if self.mode == "local":
             dst = self.root / rel_path
             dst.parent.mkdir(parents=True, exist_ok=True)
@@ -102,7 +103,7 @@ class StorageBackend:
             extra["ExtraArgs"] = {"ContentType": content_type}
         self.s3.upload_file(str(local_path), self.bucket, self.key(rel_path), **extra)
 
-    def presigned_url(self, rel_path: str, expires_seconds: int | None = None) -> str | None:
+    def presigned_url(self, rel_path: str, expires_seconds: Optional[int] = None) -> Optional[str]:
         if self.mode == "local":
             return None
         exp = expires_seconds or S3_PRESIGN_EXPIRES

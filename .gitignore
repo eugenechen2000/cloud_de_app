@@ -1,0 +1,11 @@
+.DS_Store
+.venv/
+__pycache__/
+*.pyc
+
+# Local runtime/state
+data/
+
+# Local environment files
+.env
+.env.*

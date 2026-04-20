@@ -5,89 +5,376 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Upload-to-DESeq2</title>
     <style>
-      body { font-family: Arial, sans-serif; margin: 2rem auto; max-width: 980px; }
-      .card { border: 1px solid #ddd; border-radius: 8px; padding: 1rem 1.25rem; margin-bottom: 1rem; }
-      label { display: block; margin-top: 0.75rem; font-weight: 600; }
-      input, button, select { margin-top: 0.35rem; }
-      button { padding: 0.5rem 0.85rem; cursor: pointer; }
-      pre { background: #f7f7f7; border: 1px solid #eee; padding: 0.75rem; overflow-x: auto; }
-      .row { display: flex; gap: 1rem; align-items: center; flex-wrap: wrap; }
-      .small { font-size: 0.9rem; color: #555; }
+      :root {
+        --bg: #f3f6fb;
+        --surface: #ffffff;
+        --surface-soft: #f8fbff;
+        --text: #10203a;
+        --muted: #5f6f88;
+        --primary: #2f69ff;
+        --primary-strong: #1e57f4;
+        --danger: #cc2f2f;
+        --danger-bg: #fff7f7;
+        --border: #dbe4f3;
+        --shadow: 0 8px 24px rgba(10, 35, 80, 0.08);
+        --radius: 12px;
+      }
+
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        background: linear-gradient(180deg, #f8fbff 0%, var(--bg) 100%);
+        color: var(--text);
+        font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+      }
+      .container {
+        max-width: 1040px;
+        margin: 0 auto;
+        padding: 1.5rem 1rem 2rem;
+      }
+      .hero {
+        display: flex;
+        gap: 1rem;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 1rem;
+      }
+      .hero h1 {
+        margin: 0;
+        font-size: 1.45rem;
+      }
+      .hero p {
+        margin: 0.35rem 0 0;
+        color: var(--muted);
+      }
+      .status-badge {
+        border: 1px solid var(--border);
+        border-radius: 999px;
+        padding: 0.45rem 0.8rem;
+        font-size: 0.82rem;
+        font-weight: 600;
+        background: var(--surface);
+        color: var(--muted);
+        white-space: nowrap;
+      }
+      .status-created { color: #4f6b95; border-color: #d3dff2; background: #f3f7ff; }
+      .status-uploaded, .status-queued, .status-running { color: #0f4dc3; border-color: #bfd4ff; background: #edf3ff; }
+      .status-completed { color: #0c7c43; border-color: #bce8d0; background: #ecfdf3; }
+      .status-failed { color: #a92d2d; border-color: #f0bdbd; background: #fff0f0; }
+
+      .card {
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        padding: 1rem 1.1rem;
+        margin-bottom: 0.9rem;
+        background: var(--surface);
+        box-shadow: var(--shadow);
+      }
+      .card h2 {
+        margin: 0 0 0.65rem;
+        font-size: 1.02rem;
+      }
+      .help {
+        color: var(--muted);
+        font-size: 0.9rem;
+      }
+      .small {
+        font-size: 0.88rem;
+        color: var(--muted);
+      }
       .warn { color: #8a3b00; }
+      .row { display: flex; gap: 0.75rem; align-items: center; flex-wrap: wrap; }
+      .stack { display: grid; gap: 0.7rem; }
+      .split {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 0.8rem;
+      }
+      @media (max-width: 820px) {
+        .split { grid-template-columns: 1fr; }
+      }
+
+      label {
+        display: block;
+        margin-top: 0.2rem;
+        font-size: 0.9rem;
+        font-weight: 600;
+        color: #2b3d5b;
+      }
+      input, select {
+        width: 100%;
+        padding: 0.58rem 0.64rem;
+        border: 1px solid #ccd9ef;
+        border-radius: 10px;
+        background: #fff;
+        color: var(--text);
+        margin-top: 0.32rem;
+      }
+      input[type="file"] {
+        padding: 0.5rem;
+        background: #fbfdff;
+      }
+      input[type="checkbox"] {
+        width: auto;
+        margin: 0;
+        transform: translateY(1px);
+      }
+      button {
+        border: 1px solid transparent;
+        border-radius: 10px;
+        padding: 0.55rem 0.88rem;
+        cursor: pointer;
+        font-weight: 600;
+        background: var(--primary);
+        color: #fff;
+        transition: 0.2s ease;
+      }
+      button:hover { background: var(--primary-strong); }
+      button:disabled {
+        opacity: 0.65;
+        cursor: not-allowed;
+      }
+      #refreshBtn, #loadArtifactsBtn {
+        background: #fff;
+        color: #27416b;
+        border-color: #c9d8f2;
+      }
+      #refreshBtn:hover, #loadArtifactsBtn:hover {
+        background: #f2f7ff;
+      }
+
+      .method-note {
+        background: var(--surface-soft);
+        border: 1px solid #d9e8ff;
+        border-radius: 10px;
+        padding: 0.75rem 0.8rem;
+      }
+      .method-note ul { margin: 0.45rem 0 0 1.1rem; padding: 0; }
+      .method-note li { margin-bottom: 0.2rem; }
+
+      .group-inline {
+        display: flex;
+        gap: 0.65rem;
+        flex-wrap: wrap;
+      }
+      .group-inline label {
+        display: flex;
+        gap: 0.35rem;
+        align-items: center;
+        font-weight: 500;
+        background: #f7faff;
+        border: 1px solid #d9e7ff;
+        border-radius: 999px;
+        padding: 0.32rem 0.58rem;
+      }
+
+      .progress-shell {
+        margin-top: 0.65rem;
+        border: 1px solid #dbe5f4;
+        background: #f7faff;
+        border-radius: 10px;
+        padding: 0.65rem;
+      }
+      .progress-line {
+        width: 100%;
+        height: 12px;
+        background: #e6edf8;
+        border-radius: 999px;
+        overflow: hidden;
+      }
+      #progressBar {
+        height: 100%;
+        width: 0%;
+        background: var(--primary);
+        transition: width 0.25s;
+      }
+      pre {
+        margin: 0.65rem 0 0;
+        background: #f6f9ff;
+        border: 1px solid #e1e9f8;
+        border-radius: 10px;
+        padding: 0.7rem;
+        overflow-x: auto;
+      }
+      #errorBox {
+        display: none;
+        border-color: #f1b5b5;
+        background: var(--danger-bg);
+      }
+      #errorText {
+        margin: 0;
+        background: transparent;
+        border: none;
+        padding: 0;
+        white-space: pre-wrap;
+      }
+      #artifactsList {
+        list-style: none;
+        margin: 0.8rem 0 0;
+        padding: 0;
+        display: grid;
+        gap: 0.4rem;
+      }
+      #artifactsList li {
+        border: 1px solid #dbe4f3;
+        border-radius: 8px;
+        padding: 0.42rem 0.56rem;
+        background: #fbfdff;
+      }
+      #artifactsList a {
+        text-decoration: none;
+        color: #1b4fad;
+      }
+      #artifactsList a:hover { text-decoration: underline; }
+      .section-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 0.8rem;
+        margin-bottom: 0.65rem;
+      }
     </style>
   </head>
   <body>
-    <h1>Cloud Upload-to-DESeq2 (MVP)</h1>
+    <div class="container">
+      <header class="hero">
+        <div>
+          <h1>RNA Differential Expression Workbench</h1>
+          <p>Upload count-like RNA-seq inputs, run DESeq2, and review analysis artifacts in one place.</p>
+        </div>
+        <span id="statusBadge" class="status-badge status-created">No active run</span>
+      </header>
 
-    <div class="card">
-      <h2>1) Create Run</h2>
-      <label for="projectId">Project ID</label>
-      <input id="projectId" value="soft-demo" />
-      <div class="row">
-        <button id="createRunBtn">Create Run</button>
-        <span id="runIdText" class="small"></span>
-      </div>
-    </div>
-
-    <div class="card">
-      <h2>2) Upload Inputs</h2>
-      <div class="small" style="background:#f8fbff;border:1px solid #d9e8ff;border-radius:6px;padding:0.7rem 0.8rem;margin-bottom:0.8rem;">
-        <strong>Method note (DESeq2 input expectations)</strong>
-        <ul style="margin:0.45rem 0 0 1.1rem;padding:0;">
-          <li><strong>Raw counts</strong> and <strong>RSEM expected_count</strong> are valid count-like inputs for DESeq2.</li>
-          <li><strong>Salmon/Kallisto estimated counts</strong> are accepted in count-matrix form.</li>
-          <li><strong>TPM/FPKM-only</strong> is intentionally blocked for DESeq2 because values are normalized abundance, not count-like observations.</li>
-        </ul>
-      </div>
-      <label for="inputType">Input type</label>
-      <select id="inputType">
-        <option value="rsem_expected_counts">RSEM .genes.results (expected_count)</option>
-        <option value="raw_counts_matrix">Raw count matrix (gene x sample) + sample sheet</option>
-        <option value="salmon_kallisto_estimated_counts">Salmon/Kallisto estimated counts matrix + sample sheet</option>
-        <option value="tpm_fpkm_only">TPM/FPKM only (disabled for DESeq2)</option>
-      </select>
-
-      <label for="sampleSheet">Sample sheet CSV</label>
-      <input id="sampleSheet" type="file" accept=".csv" />
-
-      <div id="rsemSection">
-        <label for="rsemFiles">RSEM `.genes.results` files</label>
-        <input id="rsemFiles" type="file" multiple />
+      <div id="errorBox" class="card">
+        <h3 style="margin-top:0;color:#8a1f1f;">Error</h3>
+        <pre id="errorText"></pre>
       </div>
 
-      <div id="matrixSection" style="display:none;">
-        <label for="countMatrix">Count matrix CSV (first col=gene_id, remaining cols=sample_ids)</label>
-        <input id="countMatrix" type="file" accept=".csv,.tsv" />
+      <div class="card">
+        <div class="section-head">
+          <h2>1) Create run</h2>
+          <span id="runIdText" class="small"></span>
+        </div>
+        <div class="split">
+          <div>
+            <label for="projectId">Project ID</label>
+            <input id="projectId" value="soft-demo" />
+          </div>
+          <div class="stack" style="align-content:end;">
+            <button id="createRunBtn">Create run</button>
+            <span class="help">Start a new analysis workspace before uploading files.</span>
+          </div>
+        </div>
       </div>
 
-      <p id="modeHint" class="small"></p>
-      <div class="row">
-        <button id="uploadBtn">Upload</button>
-        <span id="uploadText" class="small"></span>
-      </div>
-    </div>
+      <div class="card">
+        <h2>2) Upload inputs</h2>
+        <div class="method-note small">
+          <strong>Method note (DESeq2 input expectations)</strong>
+          <ul>
+            <li><strong>Raw counts</strong> and <strong>RSEM expected_count</strong> are valid count-like inputs for DESeq2.</li>
+            <li><strong>Salmon/Kallisto estimated counts</strong> are accepted in count-matrix form.</li>
+            <li><strong>TPM/FPKM-only</strong> is intentionally blocked for DESeq2 because values are normalized abundance, not count-like observations.</li>
+          </ul>
+        </div>
+        <div class="split">
+          <div>
+            <label for="inputType">Input type</label>
+            <select id="inputType">
+              <option value="rsem_expected_counts">RSEM .genes.results (expected_count)</option>
+              <option value="raw_counts_matrix">Raw count matrix (gene x sample) + sample sheet</option>
+              <option value="salmon_kallisto_estimated_counts">Salmon/Kallisto estimated counts matrix + sample sheet</option>
+              <option value="tpm_fpkm_only">TPM/FPKM only (disabled for DESeq2)</option>
+            </select>
+          </div>
+          <div>
+            <label for="sampleSheet">Sample sheet CSV</label>
+            <input id="sampleSheet" type="file" accept=".csv" />
+          </div>
+        </div>
 
-    <div class="card">
-      <h2>3) Start DESeq2</h2>
-      <div class="row">
-        <input id="groupA" placeholder="group_a (optional)" />
-        <input id="groupB" placeholder="group_b (optional)" />
-      </div>
-      <div class="row">
-        <button id="startBtn">Start Run</button>
-        <button id="refreshBtn">Refresh Status</button>
-      </div>
-      <pre id="statusBox">{}</pre>
-    </div>
+        <div id="rsemSection">
+          <label for="rsemFiles">RSEM `.genes.results` files</label>
+          <input id="rsemFiles" type="file" multiple />
+        </div>
 
-    <div class="card">
-      <h2>4) Artifacts</h2>
-      <button id="loadArtifactsBtn">Load Artifacts</button>
-      <ul id="artifactsList"></ul>
+        <div id="matrixSection" style="display:none;">
+          <label for="countMatrix">Count matrix CSV (first col=gene_id, remaining cols=sample_ids)</label>
+          <input id="countMatrix" type="file" accept=".csv,.tsv" />
+        </div>
+        <p id="modeHint" class="small"></p>
+        <div class="row">
+          <button id="uploadBtn">Upload inputs</button>
+          <span id="uploadText" class="small"></span>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>3) Start DESeq2</h2>
+        <div class="split">
+          <div>
+            <label for="groupA">Group A (optional)</label>
+            <input id="groupA" placeholder="group_a (optional)" />
+          </div>
+          <div>
+            <label for="groupB">Group B (optional)</label>
+            <input id="groupB" placeholder="group_b (optional)" />
+          </div>
+        </div>
+        <div class="group-inline" style="margin-top:0.65rem;">
+          <label>
+            <input id="labelSigGenes" type="checkbox" />
+            Label significant genes on volcano
+          </label>
+          <label>
+            <input id="runGSEA" type="checkbox" checked />
+            Run GSEA (Hallmark/KEGG/Reactome)
+          </label>
+          <label>
+            <input id="prepCIBERSORTx" type="checkbox" checked />
+            Prepare CIBERSORTx files
+          </label>
+          <label>
+            Max labels
+            <input id="maxLabels" type="number" min="0" max="200" value="25" style="width:90px;" />
+          </label>
+        </div>
+        <div class="row" style="margin-top:0.75rem;">
+          <button id="startBtn">Start run</button>
+          <button id="refreshBtn">Refresh status</button>
+        </div>
+
+        <div class="progress-shell">
+          <div class="small" id="progressText">Progress: idle</div>
+          <div class="small" id="timerText" style="margin-top:0.2rem;">Elapsed: 00:00 · ETA: --:--</div>
+          <div class="progress-line" style="margin-top:0.45rem;">
+            <div id="progressBar"></div>
+          </div>
+        </div>
+        <pre id="statusBox">{}</pre>
+        <div id="notesWrap" style="display:none;margin-top:0.6rem;">
+          <div class="small" style="font-weight:600;margin-bottom:0.25rem;">Pipeline notes</div>
+          <ul id="notesList" class="small" style="margin:0 0 0 1.1rem;padding:0;"></ul>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="section-head">
+          <h2>4) Artifacts</h2>
+          <button id="loadArtifactsBtn">Load artifacts</button>
+        </div>
+        <ul id="artifactsList"></ul>
+        <div id="plotGalleryWrap" style="display:none;margin-top:0.9rem;">
+          <h3 style="margin-bottom:0.6rem;">Visualization gallery</h3>
+          <div id="plotGallery" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:0.8rem;"></div>
+        </div>
+      </div>
     </div>
 
     <script>
       let runId = null;
+      let runStartedAt = null;
+      let runTimerHandle = null;
       const statusBox = document.getElementById("statusBox");
       const inputType = document.getElementById("inputType");
       const rsemSection = document.getElementById("rsemSection");
@@ -112,88 +399,383 @@
       inputType.addEventListener("change", syncModeUI);
       syncModeUI();
 
+      function progressFromStatus(data) {
+        const s = data && data.status ? data.status : "created";
+        let pct = 0;
+        let label = "created";
+        if (s === "created") { pct = 5; label = "Run created"; }
+        if (s === "uploaded") { pct = 25; label = "Inputs uploaded"; }
+        if (s === "queued") { pct = 45; label = "Queued"; }
+        if (s === "running") { pct = 75; label = "Running DESeq2"; }
+        if (s === "completed") { pct = 100; label = "Completed"; }
+        if (s === "failed") { pct = 100; label = "Failed"; }
+        return { pct, label };
+      }
+
+      function renderProgress(data) {
+        const bar = document.getElementById("progressBar");
+        const txt = document.getElementById("progressText");
+        const p = progressFromStatus(data);
+        bar.style.width = `${p.pct}%`;
+        bar.style.background = data && data.status === "failed" ? "#cc2f2f" : "#4f8cff";
+        txt.textContent = `Progress: ${p.label} (${p.pct}%)`;
+      }
+
+      function renderStatusBadge(data) {
+        const badge = document.getElementById("statusBadge");
+        const status = data && data.status ? data.status : "created";
+        badge.className = `status-badge status-${status}`;
+        badge.textContent = `Status: ${status}`;
+      }
+
+      function formatDuration(totalSeconds) {
+        const s = Math.max(0, Math.floor(totalSeconds));
+        const mm = String(Math.floor(s / 60)).padStart(2, "0");
+        const ss = String(s % 60).padStart(2, "0");
+        return `${mm}:${ss}`;
+      }
+
+      function estimateTotalSecondsByStatus(status) {
+        // Heuristic totals; keeps UX informative without backend timing API.
+        if (status === "queued") return 45;
+        if (status === "running") return 120;
+        if (status === "completed" || status === "failed") return 0;
+        return 90;
+      }
+
+      function updateTimerDisplay(latestStatus) {
+        const timerText = document.getElementById("timerText");
+        if (!runStartedAt) {
+          timerText.textContent = "Elapsed: 00:00 · ETA: --:--";
+          return;
+        }
+        const elapsed = Math.floor((Date.now() - runStartedAt) / 1000);
+        if (latestStatus === "completed") {
+          timerText.textContent = `Elapsed: ${formatDuration(elapsed)} · ETA: 00:00`;
+          return;
+        }
+        if (latestStatus === "failed") {
+          timerText.textContent = `Elapsed: ${formatDuration(elapsed)} · ETA: failed`;
+          return;
+        }
+        const estTotal = estimateTotalSecondsByStatus(latestStatus);
+        const eta = Math.max(estTotal - elapsed, 0);
+        timerText.textContent = `Elapsed: ${formatDuration(elapsed)} · ETA: ${formatDuration(eta)}`;
+      }
+
+      function startRunTimer(status) {
+        if (!runStartedAt) runStartedAt = Date.now();
+        if (runTimerHandle) clearInterval(runTimerHandle);
+        updateTimerDisplay(status);
+        runTimerHandle = setInterval(() => updateTimerDisplay(status), 1000);
+      }
+
+      function syncTimerWithStatus(status) {
+        if (status === "queued" || status === "running") {
+          startRunTimer(status);
+          return;
+        }
+        if (status === "completed" || status === "failed") {
+          updateTimerDisplay(status);
+          if (runTimerHandle) {
+            clearInterval(runTimerHandle);
+            runTimerHandle = null;
+          }
+          return;
+        }
+        if (status === "created" || status === "uploaded") {
+          if (runTimerHandle) {
+            clearInterval(runTimerHandle);
+            runTimerHandle = null;
+          }
+          runStartedAt = null;
+          updateTimerDisplay(status);
+        }
+      }
+
+      function extractPipelineNotes(data) {
+        const logs = Array.isArray(data && data.logs) ? data.logs : [];
+        const notes = [];
+        for (const entry of logs) {
+          const line = String(entry || "");
+          const lower = line.toLowerCase();
+          if (
+            lower.includes("gsea") ||
+            lower.includes("cibersortx") ||
+            lower.includes("skipped") ||
+            lower.includes("failed") ||
+            lower.includes("error") ||
+            lower.includes("run completed")
+          ) {
+            notes.push(line);
+          }
+        }
+        // Keep deduplicated notes in original order.
+        return [...new Set(notes)];
+      }
+
+      function renderPipelineNotes(data) {
+        const wrap = document.getElementById("notesWrap");
+        const list = document.getElementById("notesList");
+        list.innerHTML = "";
+        const notes = extractPipelineNotes(data);
+        if (!notes.length) {
+          wrap.style.display = "none";
+          return;
+        }
+        for (const note of notes) {
+          const li = document.createElement("li");
+          li.textContent = note;
+          list.appendChild(li);
+        }
+        wrap.style.display = "block";
+      }
+
+      function renderRunStatus(data) {
+        statusBox.textContent = JSON.stringify(data, null, 2);
+        renderProgress(data);
+        renderStatusBadge(data);
+        syncTimerWithStatus(data && data.status ? data.status : "created");
+        renderPipelineNotes(data);
+      }
+
       async function api(path, opts = {}) {
         const res = await fetch(path, opts);
         if (!res.ok) {
-          throw new Error(await res.text());
+          const raw = await res.text();
+          let detail = raw;
+          try {
+            const parsed = JSON.parse(raw);
+            detail = parsed.detail || parsed.message || raw;
+          } catch (_) {}
+          throw new Error(`HTTP ${res.status}: ${detail}`);
         }
         const ct = res.headers.get("content-type") || "";
         return ct.includes("application/json") ? res.json() : res.text();
       }
 
+      function showError(err, context) {
+        const box = document.getElementById("errorBox");
+        const text = document.getElementById("errorText");
+        const msg = err && err.message ? err.message : String(err);
+        text.textContent = `${context}\\n${msg}`;
+        box.style.display = "block";
+      }
+
+      function clearError() {
+        const box = document.getElementById("errorBox");
+        const text = document.getElementById("errorText");
+        text.textContent = "";
+        box.style.display = "none";
+      }
+
+      function uploadWithProgress(url, formData, onProgress) {
+        return new Promise((resolve, reject) => {
+          const xhr = new XMLHttpRequest();
+          xhr.open("POST", url, true);
+          xhr.upload.onprogress = (evt) => {
+            if (evt.lengthComputable && typeof onProgress === "function") {
+              const pct = Math.round((evt.loaded / evt.total) * 100);
+              onProgress(pct);
+            }
+          };
+          xhr.onload = () => {
+            if (xhr.status >= 200 && xhr.status < 300) {
+              try {
+                resolve(JSON.parse(xhr.responseText));
+              } catch (err) {
+                reject(new Error("Upload finished but response was not JSON"));
+              }
+            } else {
+              reject(new Error(xhr.responseText || `Upload failed (${xhr.status})`));
+            }
+          };
+          xhr.onerror = () => reject(new Error("Network error during upload"));
+          xhr.send(formData);
+        });
+      }
+
       document.getElementById("createRunBtn").onclick = async () => {
-        const projectId = document.getElementById("projectId").value.trim();
-        const data = await api(`/projects/${encodeURIComponent(projectId)}/runs`, { method: "POST" });
-        runId = data.run_id;
-        document.getElementById("runIdText").textContent = `Run ID: ${runId}`;
-        statusBox.textContent = JSON.stringify(data, null, 2);
+        clearError();
+        try {
+          const projectId = document.getElementById("projectId").value.trim();
+          const data = await api(`/projects/${encodeURIComponent(projectId)}/runs`, { method: "POST" });
+          runId = data.run_id;
+          document.getElementById("runIdText").textContent = `Run ID: ${runId}`;
+          renderRunStatus(data);
+        } catch (err) {
+          showError(err, "Failed to create run.");
+        }
       };
 
       document.getElementById("uploadBtn").onclick = async () => {
-        if (!runId) throw new Error("Create a run first");
-        const mode = inputType.value;
-        const sampleSheet = document.getElementById("sampleSheet").files[0];
-        if (!sampleSheet) throw new Error("Please choose a sample sheet");
+        clearError();
+        const uploadBtn = document.getElementById("uploadBtn");
+        uploadBtn.disabled = true;
+        try {
+          if (!runId) throw new Error("Create a run first");
+          const mode = inputType.value;
+          const sampleSheet = document.getElementById("sampleSheet").files[0];
+          if (!sampleSheet) throw new Error("Please choose a sample sheet");
 
-        if (mode === "tpm_fpkm_only") {
-          throw new Error("TPM/FPKM-only mode is disabled for DESeq2. Choose a count-based mode.");
+          if (mode === "tpm_fpkm_only") {
+            throw new Error("TPM/FPKM-only mode is disabled for DESeq2. Choose a count-based mode.");
+          }
+
+          const form = new FormData();
+          form.append("sample_sheet", sampleSheet);
+
+          let endpoint = "";
+          if (mode === "rsem_expected_counts") {
+            endpoint = `/runs/${runId}/upload-rsem`;
+            const rsemFiles = Array.from(document.getElementById("rsemFiles").files);
+            if (!rsemFiles.length) throw new Error("Please choose one or more RSEM files");
+            rsemFiles.forEach((f) => form.append("rsem_files", f));
+          } else {
+            endpoint = `/runs/${runId}/upload-count-matrix`;
+            const matrix = document.getElementById("countMatrix").files[0];
+            if (!matrix) throw new Error("Please choose a count matrix file");
+            form.append("count_matrix", matrix);
+            form.append("input_type", mode);
+          }
+
+          document.getElementById("uploadText").textContent = "Uploading... 0%";
+          const data = await uploadWithProgress(endpoint, form, (pct) => {
+            document.getElementById("uploadText").textContent = `Uploading... ${pct}%`;
+          });
+          document.getElementById("uploadText").textContent = `Upload complete (100%) — mode: ${data.input_type}`;
+          renderRunStatus(data);
+        } catch (err) {
+          document.getElementById("uploadText").textContent = "Upload failed";
+          showError(err, "Upload failed.");
+        } finally {
+          uploadBtn.disabled = false;
         }
-
-        const form = new FormData();
-        form.append("sample_sheet", sampleSheet);
-
-        let endpoint = "";
-        if (mode === "rsem_expected_counts") {
-          endpoint = `/runs/${runId}/upload-rsem`;
-          const rsemFiles = Array.from(document.getElementById("rsemFiles").files);
-          if (!rsemFiles.length) throw new Error("Please choose one or more RSEM files");
-          rsemFiles.forEach((f) => form.append("rsem_files", f));
-        } else {
-          endpoint = `/runs/${runId}/upload-count-matrix`;
-          const matrix = document.getElementById("countMatrix").files[0];
-          if (!matrix) throw new Error("Please choose a count matrix file");
-          form.append("count_matrix", matrix);
-          form.append("input_type", mode);
-        }
-
-        const data = await api(endpoint, { method: "POST", body: form });
-        document.getElementById("uploadText").textContent = `Uploaded for mode: ${data.input_type}`;
-        statusBox.textContent = JSON.stringify(data, null, 2);
       };
 
       document.getElementById("startBtn").onclick = async () => {
-        if (!runId) throw new Error("Create a run first");
-        const groupA = document.getElementById("groupA").value.trim();
-        const groupB = document.getElementById("groupB").value.trim();
-        const payload = { group_a: groupA || null, group_b: groupB || null };
-        const data = await api(`/runs/${runId}/start`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload),
-        });
-        statusBox.textContent = JSON.stringify(data, null, 2);
+        clearError();
+        try {
+          if (!runId) throw new Error("Create a run first");
+          const groupA = document.getElementById("groupA").value.trim();
+          const groupB = document.getElementById("groupB").value.trim();
+          const maxLabels = parseInt(document.getElementById("maxLabels").value || "25", 10);
+          const payload = {
+            group_a: groupA || null,
+            group_b: groupB || null,
+            label_significant_genes: document.getElementById("labelSigGenes").checked,
+            max_labels: Number.isFinite(maxLabels) ? maxLabels : 25,
+            run_gsea: document.getElementById("runGSEA").checked,
+            prepare_cibersortx: document.getElementById("prepCIBERSORTx").checked,
+          };
+          const data = await api(`/runs/${runId}/start`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload),
+          });
+          runStartedAt = Date.now();
+          // Fetch full metadata so notes/logs are visible immediately in status panel.
+          const full = await api(`/runs/${runId}`);
+          renderRunStatus(full);
+        } catch (err) {
+          showError(err, "Failed to start DESeq2 run.");
+        }
       };
 
       document.getElementById("refreshBtn").onclick = async () => {
-        if (!runId) throw new Error("Create a run first");
-        const data = await api(`/runs/${runId}`);
-        statusBox.textContent = JSON.stringify(data, null, 2);
+        clearError();
+        try {
+          if (!runId) throw new Error("Create a run first");
+          const data = await api(`/runs/${runId}`);
+          renderRunStatus(data);
+        } catch (err) {
+          showError(err, "Failed to refresh run status.");
+        }
       };
 
       document.getElementById("loadArtifactsBtn").onclick = async () => {
-        if (!runId) throw new Error("Create a run first");
-        const data = await api(`/runs/${runId}/artifacts`);
-        const ul = document.getElementById("artifactsList");
-        ul.innerHTML = "";
-        data.artifacts.forEach((a) => {
-          const li = document.createElement("li");
-          const link = document.createElement("a");
-          link.href = `/runs/${runId}/artifacts/${encodeURIComponent(a.name)}`;
-          link.textContent = `${a.name} (${a.size_bytes} bytes)`;
-          link.target = "_blank";
-          li.appendChild(link);
-          ul.appendChild(li);
-        });
+        clearError();
+        try {
+          if (!runId) throw new Error("Create a run first");
+          const data = await api(`/runs/${runId}/artifacts`);
+          const ul = document.getElementById("artifactsList");
+          const galleryWrap = document.getElementById("plotGalleryWrap");
+          const gallery = document.getElementById("plotGallery");
+          ul.innerHTML = "";
+          galleryWrap.style.display = "none";
+          gallery.innerHTML = "";
+          const plotCandidates = [];
+          data.artifacts.forEach((a) => {
+            const href = `/runs/${runId}/artifacts/${encodeURIComponent(a.name)}`;
+            const li = document.createElement("li");
+            const link = document.createElement("a");
+            link.href = href;
+            link.textContent = `${a.name} (${a.size_bytes} bytes)`;
+            link.target = "_blank";
+            li.appendChild(link);
+            ul.appendChild(li);
+            if (
+              a.name.endsWith(".png") &&
+              (a.name.includes("volcano") || a.name.includes("ma_plot") || a.name.includes("gsea_"))
+            ) {
+              plotCandidates.push({ name: a.name, href });
+            }
+          });
+
+          // Show key visualization plots first: volcano, MA, then GSEA.
+          const rank = (name) => {
+            if (name.includes("volcano")) return 0;
+            if (name.includes("ma_plot")) return 1;
+            if (name.includes("gsea_hallmark_top")) return 2;
+            if (name.includes("gsea_kegg_top")) return 3;
+            if (name.includes("gsea_reactome_top")) return 4;
+            return 10;
+          };
+          plotCandidates.sort((a, b) => {
+            const ra = rank(a.name);
+            const rb = rank(b.name);
+            if (ra !== rb) return ra - rb;
+            return a.name.localeCompare(b.name);
+          });
+
+          if (plotCandidates.length > 0) {
+            for (const p of plotCandidates) {
+              const card = document.createElement("div");
+              card.style.border = "1px solid #ddd";
+              card.style.borderRadius = "6px";
+              card.style.padding = "0.45rem";
+
+              const title = document.createElement("div");
+              title.style.fontSize = "0.9rem";
+              title.style.fontWeight = "600";
+              title.style.marginBottom = "0.35rem";
+              title.textContent = p.name;
+
+              const img = document.createElement("img");
+              img.alt = p.name;
+              img.style.maxWidth = "100%";
+              img.style.height = "auto";
+              img.style.border = "1px solid #eee";
+              img.style.borderRadius = "4px";
+              img.src = `${p.href}?t=${Date.now()}`; // cache bust
+
+              const dl = document.createElement("a");
+              dl.href = p.href;
+              dl.target = "_blank";
+              dl.textContent = "Open / Download";
+              dl.style.display = "inline-block";
+              dl.style.marginTop = "0.35rem";
+
+              card.appendChild(title);
+              card.appendChild(img);
+              card.appendChild(dl);
+              gallery.appendChild(card);
+            }
+            galleryWrap.style.display = "block";
+          }
+        } catch (err) {
+          showError(err, "Failed to load artifacts.");
+        }
       };
     </script>
   </body>

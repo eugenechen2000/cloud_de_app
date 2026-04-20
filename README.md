@@ -53,13 +53,26 @@ docker compose up --build
 
 ## Outputs per run
 
-Each run writes artifacts under `data/runs/<run_id>/artifacts/`:
+Each run writes artifacts under `data/runs/<run_id>/artifacts/`.
+All filenames are prefixed with sanitized `project_id` (for example, `soft_demo_...`):
 
-- `deseq2_all_genes.csv`
-- `deseq2_significant_genes.csv`
-- `volcano.png`
-- `volcano.pdf`
-- `summary.txt`
+- `<project>_deseq2_all_genes.csv`
+- `<project>_deseq2_significant_genes.csv`
+- `<project>_top_genes_up.csv`
+- `<project>_top_genes_down.csv`
+- `<project>_qc_sample_counts.csv`
+- `<project>_run_parameters.json`
+- `<project>_volcano.png`
+- `<project>_volcano.pdf`
+- `<project>_ma_plot.png`
+- `<project>_ma_plot.pdf`
+- `<project>_summary.txt`
+- `<project>_results_bundle.zip` (when `zip` binary is available)
+- `<project>_gsea_hallmark.csv`, `<project>_gsea_kegg.csv`, `<project>_gsea_reactome.csv`
+- `<project>_gsea_*_top.png/.pdf` and `<project>_gsea_summary_top10.csv`
+- `<project>_cibersortx_mixture_normalized_counts.csv`
+- `<project>_cibersortx_sample_metadata.csv`
+- `<project>_cibersortx_instructions.txt`
 
 
 ## Object storage (S3-compatible)
