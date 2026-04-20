@@ -233,6 +233,54 @@
         gap: 0.8rem;
         margin-bottom: 0.65rem;
       }
+      .top-tabs {
+        display: flex;
+        gap: 0.5rem;
+        margin-bottom: 0.9rem;
+      }
+      .tab-btn {
+        background: #eef4ff;
+        color: #244373;
+        border: 1px solid #d3e0fa;
+        padding: 0.45rem 0.75rem;
+        border-radius: 999px;
+      }
+      .tab-btn.active {
+        background: #2f69ff;
+        border-color: #2f69ff;
+        color: #fff;
+      }
+      .screen { display: none; }
+      .screen.active { display: block; }
+      .guide-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 0.8rem;
+      }
+      @media (max-width: 820px) {
+        .guide-grid { grid-template-columns: 1fr; }
+      }
+      .guide-panel {
+        border: 1px solid #dbe4f3;
+        border-radius: 10px;
+        background: #fbfdff;
+        padding: 0.8rem;
+      }
+      .guide-panel h3 {
+        margin: 0 0 0.45rem;
+        font-size: 0.95rem;
+      }
+      .code-mini {
+        margin-top: 0.45rem;
+        padding: 0.55rem 0.6rem;
+        border-radius: 8px;
+        border: 1px solid #e1e9f8;
+        background: #f4f8ff;
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+        font-size: 0.82rem;
+        color: #334865;
+        overflow-x: auto;
+      }
     </style>
   </head>
   <body>
@@ -245,11 +293,17 @@
         <span id="statusBadge" class="status-badge status-created">No active run</span>
       </header>
 
+      <div class="top-tabs">
+        <button id="tabRun" class="tab-btn active" type="button">Run Console</button>
+        <button id="tabGuide" class="tab-btn" type="button">Getting Started</button>
+      </div>
+
       <div id="errorBox" class="card">
         <h3 style="margin-top:0;color:#8a1f1f;">Error</h3>
         <pre id="errorText"></pre>
       </div>
 
+      <div id="screenRun" class="screen active">
       <div class="card">
         <div class="section-head">
           <h2>1) Create run</h2>
@@ -369,6 +423,47 @@
           <div id="plotGallery" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:0.8rem;"></div>
         </div>
       </div>
+      </div>
+
+      <div id="screenGuide" class="screen">
+        <div class="card">
+          <h2>Local quickstart</h2>
+          <p class="help">This screen gives new users a direct copy/paste path to run the app locally and test with public human data.</p>
+          <div class="guide-grid">
+            <div class="guide-panel">
+              <h3>1) Start the app</h3>
+              <div class="code-mini">python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+export RUN_INLINE=true
+uvicorn backend.app.main:app --reload --port 8000</div>
+              <p class="small">Open <a href="http://127.0.0.1:8000" target="_blank">http://127.0.0.1:8000</a> after startup.</p>
+            </div>
+            <div class="guide-panel">
+              <h3>2) Public human dataset</h3>
+              <p class="small">Included in repo from GEO GSE164073:</p>
+              <div class="code-mini">test_packs/public_gse164073_human/sample_sheet.csv
+test_packs/public_gse164073_human/count_matrix.csv</div>
+              <p class="small">Use groups: <code>mock</code> vs <code>infected</code>.</p>
+            </div>
+            <div class="guide-panel">
+              <h3>3) Recommended run settings</h3>
+              <ul class="small" style="margin:0 0 0 1.1rem;padding:0;">
+                <li>Input type: Raw count matrix</li>
+                <li>Enable GSEA and CIBERSORTx prep</li>
+                <li>Label significant genes on volcano</li>
+                <li>Load artifacts after completion</li>
+              </ul>
+            </div>
+            <div class="guide-panel">
+              <h3>4) Public source references</h3>
+              <p class="small"><a href="https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE164073" target="_blank">GEO series page (GSE164073)</a></p>
+              <p class="small"><a href="https://www.ncbi.nlm.nih.gov/geo/download/?acc=GSE164073&format=file&file=GSE164073%5FEye%5Fcount%5Fmatrix%2Ecsv%2Egz" target="_blank">Direct GEO count matrix download URL</a></p>
+              <p class="small">This app supports both ENSEMBL-like and symbol-like gene IDs for GSEA.</p>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
 
     <script>
@@ -380,6 +475,20 @@
       const rsemSection = document.getElementById("rsemSection");
       const matrixSection = document.getElementById("matrixSection");
       const modeHint = document.getElementById("modeHint");
+      const tabRun = document.getElementById("tabRun");
+      const tabGuide = document.getElementById("tabGuide");
+      const screenRun = document.getElementById("screenRun");
+      const screenGuide = document.getElementById("screenGuide");
+
+      function showScreen(target) {
+        const runActive = target === "run";
+        tabRun.classList.toggle("active", runActive);
+        tabGuide.classList.toggle("active", !runActive);
+        screenRun.classList.toggle("active", runActive);
+        screenGuide.classList.toggle("active", !runActive);
+      }
+      tabRun.addEventListener("click", () => showScreen("run"));
+      tabGuide.addEventListener("click", () => showScreen("guide"));
 
       function syncModeUI() {
         const v = inputType.value;
