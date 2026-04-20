@@ -56,3 +56,4 @@ services:
   - type: redis
     name: upload-deseq2-redis
     plan: starter
+    ipAllowList: []
