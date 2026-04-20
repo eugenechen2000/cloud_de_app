@@ -1,0 +1,200 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Upload-to-DESeq2</title>
+    <style>
+      body { font-family: Arial, sans-serif; margin: 2rem auto; max-width: 980px; }
+      .card { border: 1px solid #ddd; border-radius: 8px; padding: 1rem 1.25rem; margin-bottom: 1rem; }
+      label { display: block; margin-top: 0.75rem; font-weight: 600; }
+      input, button, select { margin-top: 0.35rem; }
+      button { padding: 0.5rem 0.85rem; cursor: pointer; }
+      pre { background: #f7f7f7; border: 1px solid #eee; padding: 0.75rem; overflow-x: auto; }
+      .row { display: flex; gap: 1rem; align-items: center; flex-wrap: wrap; }
+      .small { font-size: 0.9rem; color: #555; }
+      .warn { color: #8a3b00; }
+    </style>
+  </head>
+  <body>
+    <h1>Cloud Upload-to-DESeq2 (MVP)</h1>
+
+    <div class="card">
+      <h2>1) Create Run</h2>
+      <label for="projectId">Project ID</label>
+      <input id="projectId" value="soft-demo" />
+      <div class="row">
+        <button id="createRunBtn">Create Run</button>
+        <span id="runIdText" class="small"></span>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>2) Upload Inputs</h2>
+      <div class="small" style="background:#f8fbff;border:1px solid #d9e8ff;border-radius:6px;padding:0.7rem 0.8rem;margin-bottom:0.8rem;">
+        <strong>Method note (DESeq2 input expectations)</strong>
+        <ul style="margin:0.45rem 0 0 1.1rem;padding:0;">
+          <li><strong>Raw counts</strong> and <strong>RSEM expected_count</strong> are valid count-like inputs for DESeq2.</li>
+          <li><strong>Salmon/Kallisto estimated counts</strong> are accepted in count-matrix form.</li>
+          <li><strong>TPM/FPKM-only</strong> is intentionally blocked for DESeq2 because values are normalized abundance, not count-like observations.</li>
+        </ul>
+      </div>
+      <label for="inputType">Input type</label>
+      <select id="inputType">
+        <option value="rsem_expected_counts">RSEM .genes.results (expected_count)</option>
+        <option value="raw_counts_matrix">Raw count matrix (gene x sample) + sample sheet</option>
+        <option value="salmon_kallisto_estimated_counts">Salmon/Kallisto estimated counts matrix + sample sheet</option>
+        <option value="tpm_fpkm_only">TPM/FPKM only (disabled for DESeq2)</option>
+      </select>
+
+      <label for="sampleSheet">Sample sheet CSV</label>
+      <input id="sampleSheet" type="file" accept=".csv" />
+
+      <div id="rsemSection">
+        <label for="rsemFiles">RSEM `.genes.results` files</label>
+        <input id="rsemFiles" type="file" multiple />
+      </div>
+
+      <div id="matrixSection" style="display:none;">
+        <label for="countMatrix">Count matrix CSV (first col=gene_id, remaining cols=sample_ids)</label>
+        <input id="countMatrix" type="file" accept=".csv,.tsv" />
+      </div>
+
+      <p id="modeHint" class="small"></p>
+      <div class="row">
+        <button id="uploadBtn">Upload</button>
+        <span id="uploadText" class="small"></span>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>3) Start DESeq2</h2>
+      <div class="row">
+        <input id="groupA" placeholder="group_a (optional)" />
+        <input id="groupB" placeholder="group_b (optional)" />
+      </div>
+      <div class="row">
+        <button id="startBtn">Start Run</button>
+        <button id="refreshBtn">Refresh Status</button>
+      </div>
+      <pre id="statusBox">{}</pre>
+    </div>
+
+    <div class="card">
+      <h2>4) Artifacts</h2>
+      <button id="loadArtifactsBtn">Load Artifacts</button>
+      <ul id="artifactsList"></ul>
+    </div>
+
+    <script>
+      let runId = null;
+      const statusBox = document.getElementById("statusBox");
+      const inputType = document.getElementById("inputType");
+      const rsemSection = document.getElementById("rsemSection");
+      const matrixSection = document.getElementById("matrixSection");
+      const modeHint = document.getElementById("modeHint");
+
+      function syncModeUI() {
+        const v = inputType.value;
+        const isRsem = v === "rsem_expected_counts";
+        const isDisabled = v === "tpm_fpkm_only";
+        rsemSection.style.display = isRsem ? "block" : "none";
+        matrixSection.style.display = isRsem ? "none" : "block";
+        modeHint.className = isDisabled ? "small warn" : "small";
+        if (v === "rsem_expected_counts") {
+          modeHint.textContent = "Sample sheet columns: sample_id,file_name,group";
+        } else if (v === "raw_counts_matrix" || v === "salmon_kallisto_estimated_counts") {
+          modeHint.textContent = "Sample sheet columns: sample_id,group. Matrix should be gene x sample counts.";
+        } else {
+          modeHint.textContent = "TPM/FPKM-only is intentionally blocked for DESeq2.";
+        }
+      }
+      inputType.addEventListener("change", syncModeUI);
+      syncModeUI();
+
+      async function api(path, opts = {}) {
+        const res = await fetch(path, opts);
+        if (!res.ok) {
+          throw new Error(await res.text());
+        }
+        const ct = res.headers.get("content-type") || "";
+        return ct.includes("application/json") ? res.json() : res.text();
+      }
+
+      document.getElementById("createRunBtn").onclick = async () => {
+        const projectId = document.getElementById("projectId").value.trim();
+        const data = await api(`/projects/${encodeURIComponent(projectId)}/runs`, { method: "POST" });
+        runId = data.run_id;
+        document.getElementById("runIdText").textContent = `Run ID: ${runId}`;
+        statusBox.textContent = JSON.stringify(data, null, 2);
+      };
+
+      document.getElementById("uploadBtn").onclick = async () => {
+        if (!runId) throw new Error("Create a run first");
+        const mode = inputType.value;
+        const sampleSheet = document.getElementById("sampleSheet").files[0];
+        if (!sampleSheet) throw new Error("Please choose a sample sheet");
+
+        if (mode === "tpm_fpkm_only") {
+          throw new Error("TPM/FPKM-only mode is disabled for DESeq2. Choose a count-based mode.");
+        }
+
+        const form = new FormData();
+        form.append("sample_sheet", sampleSheet);
+
+        let endpoint = "";
+        if (mode === "rsem_expected_counts") {
+          endpoint = `/runs/${runId}/upload-rsem`;
+          const rsemFiles = Array.from(document.getElementById("rsemFiles").files);
+          if (!rsemFiles.length) throw new Error("Please choose one or more RSEM files");
+          rsemFiles.forEach((f) => form.append("rsem_files", f));
+        } else {
+          endpoint = `/runs/${runId}/upload-count-matrix`;
+          const matrix = document.getElementById("countMatrix").files[0];
+          if (!matrix) throw new Error("Please choose a count matrix file");
+          form.append("count_matrix", matrix);
+          form.append("input_type", mode);
+        }
+
+        const data = await api(endpoint, { method: "POST", body: form });
+        document.getElementById("uploadText").textContent = `Uploaded for mode: ${data.input_type}`;
+        statusBox.textContent = JSON.stringify(data, null, 2);
+      };
+
+      document.getElementById("startBtn").onclick = async () => {
+        if (!runId) throw new Error("Create a run first");
+        const groupA = document.getElementById("groupA").value.trim();
+        const groupB = document.getElementById("groupB").value.trim();
+        const payload = { group_a: groupA || null, group_b: groupB || null };
+        const data = await api(`/runs/${runId}/start`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+        statusBox.textContent = JSON.stringify(data, null, 2);
+      };
+
+      document.getElementById("refreshBtn").onclick = async () => {
+        if (!runId) throw new Error("Create a run first");
+        const data = await api(`/runs/${runId}`);
+        statusBox.textContent = JSON.stringify(data, null, 2);
+      };
+
+      document.getElementById("loadArtifactsBtn").onclick = async () => {
+        if (!runId) throw new Error("Create a run first");
+        const data = await api(`/runs/${runId}/artifacts`);
+        const ul = document.getElementById("artifactsList");
+        ul.innerHTML = "";
+        data.artifacts.forEach((a) => {
+          const li = document.createElement("li");
+          const link = document.createElement("a");
+          link.href = `/runs/${runId}/artifacts/${encodeURIComponent(a.name)}`;
+          link.textContent = `${a.name} (${a.size_bytes} bytes)`;
+          link.target = "_blank";
+          li.appendChild(link);
+          ul.appendChild(li);
+        });
+      };
+    </script>
+  </body>
+</html>

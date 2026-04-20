@@ -1,0 +1,58 @@
+services:
+  - type: web
+    name: upload-deseq2-api
+    env: docker
+    dockerfilePath: ./backend/Dockerfile
+    autoDeploy: false
+    envVars:
+      - key: REDIS_URL
+        fromService:
+          type: redis
+          name: upload-deseq2-redis
+          property: connectionString
+      - key: DEAPP_DATA_ROOT
+        value: /app/data
+      - key: RUN_INLINE
+        value: "false"
+      - key: S3_BUCKET
+        sync: false
+      - key: S3_REGION
+        value: us-east-1
+      - key: S3_ENDPOINT_URL
+        sync: false
+      - key: S3_ACCESS_KEY_ID
+        sync: false
+      - key: S3_SECRET_ACCESS_KEY
+        sync: false
+      - key: S3_PREFIX
+        value: deapp
+
+  - type: worker
+    name: upload-deseq2-worker
+    env: docker
+    dockerfilePath: ./worker/Dockerfile
+    autoDeploy: false
+    envVars:
+      - key: REDIS_URL
+        fromService:
+          type: redis
+          name: upload-deseq2-redis
+          property: connectionString
+      - key: DEAPP_DATA_ROOT
+        value: /app/data
+      - key: S3_BUCKET
+        sync: false
+      - key: S3_REGION
+        value: us-east-1
+      - key: S3_ENDPOINT_URL
+        sync: false
+      - key: S3_ACCESS_KEY_ID
+        sync: false
+      - key: S3_SECRET_ACCESS_KEY
+        sync: false
+      - key: S3_PREFIX
+        value: deapp
+
+  - type: redis
+    name: upload-deseq2-redis
+    plan: starter

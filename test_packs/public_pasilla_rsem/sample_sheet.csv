@@ -1,0 +1,8 @@
+sample_id,file_name,group
+untreated1,untreated1.genes.results,untreated
+untreated2,untreated2.genes.results,untreated
+untreated3,untreated3.genes.results,untreated
+untreated4,untreated4.genes.results,untreated
+treated1,treated1.genes.results,treated
+treated2,treated2.genes.results,treated
+treated3,treated3.genes.results,treated

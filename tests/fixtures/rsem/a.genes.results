@@ -1,0 +1,4 @@
+gene_id	expected_count
+ENSG000001.1	10
+ENSG000002.1	20
+NONENSG1	1
