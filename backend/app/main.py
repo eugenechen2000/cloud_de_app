@@ -80,6 +80,7 @@ def create_run(project_id: str) -> CreateRunResponse:
         run_id=run_id,
         project_id=project_id,
         status="created",
+        progress_pct=5,
         created_at=_now(),
         updated_at=_now(),
     )
@@ -131,6 +132,7 @@ async def upload_rsem_inputs(
     meta.uploaded_files = sorted(uploaded)
     meta.available_groups = groups
     meta.status = "uploaded"
+    meta.progress_pct = 25
     meta.error = None
     save_metadata(meta)
 
@@ -183,6 +185,7 @@ async def upload_count_matrix_inputs(
     meta.uploaded_files = ["count_matrix.csv"]
     meta.available_groups = groups
     meta.status = "uploaded"
+    meta.progress_pct = 25
     meta.error = None
     save_metadata(meta)
 
@@ -232,6 +235,7 @@ def start_run(run_id: str, req: StartRunRequest) -> StartRunResponse:
         prepare_cibersortx=req.prepare_cibersortx,
     )
     meta.status = "queued"
+    meta.progress_pct = 35
     meta.job_id = job.id
     meta.error = None
     save_metadata(meta)

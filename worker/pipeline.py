@@ -93,6 +93,11 @@ def _upload_artifacts_for_run(run_id: str, artifacts_dir: Path) -> list[str]:
     return names
 
 
+def _set_progress(meta, pct: int) -> None:
+    meta.progress_pct = max(0, min(100, int(pct)))
+    save_metadata(meta)
+
+
 def run_pipeline(
     run_id: str,
     group_a: Optional[str] = None,
@@ -106,12 +111,13 @@ def run_pipeline(
     dirs = ensure_run_dirs(run_id)
     meta.status = "running"
     meta.error = None
-    save_metadata(meta)
+    _set_progress(meta, 40)
 
     try:
         input_type = meta.input_type
         append_log(run_id, f"Preparing input files for input_type={input_type}")
         _download_inputs_for_run(run_id, dirs["uploads"])
+        _set_progress(meta, 48)
 
         sample_sheet = dirs["uploads"] / "sample_sheet.csv"
         append_log(run_id, f"Parsing sample sheet for input_type={input_type}")
@@ -137,7 +143,7 @@ def run_pipeline(
             raise ValueError(f"Unsupported input_type: {input_type}")
 
         meta.selected_groups = [group_a, group_b]
-        save_metadata(meta)
+        _set_progress(meta, 60)
 
         append_log(run_id, f"Count matrix ready: samples={n_samples}, genes={n_genes}")
         append_log(
@@ -175,18 +181,43 @@ def run_pipeline(
             "true" if prepare_cibersortx else "false",
         ]
         append_log(run_id, "Running DESeq2")
-        proc = subprocess.run(cmd, capture_output=True, text=True, check=False)
-        if proc.stdout:
-            append_log(run_id, proc.stdout.strip())
-        if proc.stderr:
-            append_log(run_id, proc.stderr.strip())
+        _set_progress(meta, 68)
+        progress_markers = [
+            ("converting counts to integer mode", 72),
+            ("estimating size factors", 75),
+            ("estimating dispersions", 80),
+            ("gene-wise dispersion estimates", 83),
+            ("mean-dispersion relationship", 86),
+            ("final dispersion estimates", 88),
+            ("fitting model and testing", 90),
+        ]
+        seen_markers = set()
+        proc = subprocess.Popen(
+            cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+        )
+        assert proc.stdout is not None
+        for raw_line in proc.stdout:
+            line = raw_line.strip()
+            if not line:
+                continue
+            append_log(run_id, line)
+            low = line.lower()
+            for marker_text, marker_pct in progress_markers:
+                if marker_text in low and marker_text not in seen_markers:
+                    _set_progress(meta, marker_pct)
+                    seen_markers.add(marker_text)
+        proc.wait()
         if proc.returncode != 0:
             raise RuntimeError(f"DESeq2 script failed with code {proc.returncode}")
 
+        _set_progress(meta, 90)
         artifact_names = _upload_artifacts_for_run(run_id, dirs["artifacts"])
         meta.status = "completed"
         meta.artifacts = artifact_names
-        save_metadata(meta)
+        _set_progress(meta, 100)
         append_log(run_id, "Run completed")
     except Exception as exc:
         meta = load_metadata(run_id)

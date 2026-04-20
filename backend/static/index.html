@@ -470,6 +470,8 @@ test_packs/public_gse164073_human/count_matrix.csv</div>
       let runId = null;
       let runStartedAt = null;
       let runTimerHandle = null;
+      let statusPollHandle = null;
+      let latestRunStatus = "created";
       const statusBox = document.getElementById("statusBox");
       const inputType = document.getElementById("inputType");
       const rsemSection = document.getElementById("rsemSection");
@@ -510,14 +512,15 @@ test_packs/public_gse164073_human/count_matrix.csv</div>
 
       function progressFromStatus(data) {
         const s = data && data.status ? data.status : "created";
-        let pct = 0;
+        let pct = Number.isFinite(data && data.progress_pct) ? data.progress_pct : 0;
         let label = "created";
-        if (s === "created") { pct = 5; label = "Run created"; }
-        if (s === "uploaded") { pct = 25; label = "Inputs uploaded"; }
-        if (s === "queued") { pct = 45; label = "Queued"; }
-        if (s === "running") { pct = 75; label = "Running DESeq2"; }
+        if (s === "created") { pct = Math.max(pct, 5); label = "Run created"; }
+        if (s === "uploaded") { pct = Math.max(pct, 25); label = "Inputs uploaded"; }
+        if (s === "queued") { pct = Math.max(pct, 35); label = "Queued"; }
+        if (s === "running") { pct = Math.max(pct, 40); label = "Running analysis"; }
         if (s === "completed") { pct = 100; label = "Completed"; }
-        if (s === "failed") { pct = 100; label = "Failed"; }
+        if (s === "failed") { pct = Math.max(pct, 100); label = "Failed"; }
+        pct = Math.min(Math.max(Math.round(pct), 0), 100);
         return { pct, label };
       }
 
@@ -552,40 +555,41 @@ test_packs/public_gse164073_human/count_matrix.csv</div>
         return 90;
       }
 
-      function updateTimerDisplay(latestStatus) {
+      function updateTimerDisplay() {
         const timerText = document.getElementById("timerText");
         if (!runStartedAt) {
           timerText.textContent = "Elapsed: 00:00 · ETA: --:--";
           return;
         }
         const elapsed = Math.floor((Date.now() - runStartedAt) / 1000);
-        if (latestStatus === "completed") {
+        if (latestRunStatus === "completed") {
           timerText.textContent = `Elapsed: ${formatDuration(elapsed)} · ETA: 00:00`;
           return;
         }
-        if (latestStatus === "failed") {
+        if (latestRunStatus === "failed") {
           timerText.textContent = `Elapsed: ${formatDuration(elapsed)} · ETA: failed`;
           return;
         }
-        const estTotal = estimateTotalSecondsByStatus(latestStatus);
+        const estTotal = estimateTotalSecondsByStatus(latestRunStatus);
         const eta = Math.max(estTotal - elapsed, 0);
         timerText.textContent = `Elapsed: ${formatDuration(elapsed)} · ETA: ${formatDuration(eta)}`;
       }
 
-      function startRunTimer(status) {
+      function startRunTimer() {
         if (!runStartedAt) runStartedAt = Date.now();
         if (runTimerHandle) clearInterval(runTimerHandle);
-        updateTimerDisplay(status);
-        runTimerHandle = setInterval(() => updateTimerDisplay(status), 1000);
+        updateTimerDisplay();
+        runTimerHandle = setInterval(() => updateTimerDisplay(), 1000);
       }
 
       function syncTimerWithStatus(status) {
+        latestRunStatus = status || "created";
         if (status === "queued" || status === "running") {
-          startRunTimer(status);
+          startRunTimer();
           return;
         }
         if (status === "completed" || status === "failed") {
-          updateTimerDisplay(status);
+          updateTimerDisplay();
           if (runTimerHandle) {
             clearInterval(runTimerHandle);
             runTimerHandle = null;
@@ -598,8 +602,31 @@ test_packs/public_gse164073_human/count_matrix.csv</div>
             runTimerHandle = null;
           }
           runStartedAt = null;
-          updateTimerDisplay(status);
+          updateTimerDisplay();
         }
+      }
+
+      function stopStatusPolling() {
+        if (statusPollHandle) {
+          clearInterval(statusPollHandle);
+          statusPollHandle = null;
+        }
+      }
+
+      function startStatusPolling() {
+        stopStatusPolling();
+        if (!runId) return;
+        statusPollHandle = setInterval(async () => {
+          try {
+            const data = await api(`/runs/${runId}`);
+            renderRunStatus(data);
+            if (data.status === "completed" || data.status === "failed") {
+              stopStatusPolling();
+            }
+          } catch (_) {
+            // Keep polling silent; manual refresh/error box is still available.
+          }
+        }, 2000);
       }
 
       function extractPipelineNotes(data) {
@@ -644,7 +671,13 @@ test_packs/public_gse164073_human/count_matrix.csv</div>
         statusBox.textContent = JSON.stringify(data, null, 2);
         renderProgress(data);
         renderStatusBadge(data);
-        syncTimerWithStatus(data && data.status ? data.status : "created");
+        const currentStatus = data && data.status ? data.status : "created";
+        syncTimerWithStatus(currentStatus);
+        if (currentStatus === "queued" || currentStatus === "running") {
+          startStatusPolling();
+        } else {
+          stopStatusPolling();
+        }
         renderPipelineNotes(data);
       }
 
@@ -710,6 +743,7 @@ test_packs/public_gse164073_human/count_matrix.csv</div>
           const projectId = document.getElementById("projectId").value.trim();
           const data = await api(`/projects/${encodeURIComponent(projectId)}/runs`, { method: "POST" });
           runId = data.run_id;
+          stopStatusPolling();
           document.getElementById("runIdText").textContent = `Run ID: ${runId}`;
           renderRunStatus(data);
         } catch (err) {
@@ -777,12 +811,17 @@ test_packs/public_gse164073_human/count_matrix.csv</div>
             run_gsea: document.getElementById("runGSEA").checked,
             prepare_cibersortx: document.getElementById("prepCIBERSORTx").checked,
           };
+          // show immediate transition before backend response returns
+          renderRunStatus({ status: "queued", progress_pct: 35, logs: [] });
           const data = await api(`/runs/${runId}/start`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify(payload),
           });
           runStartedAt = Date.now();
+          latestRunStatus = data && data.status ? data.status : "queued";
+          startRunTimer();
+          startStatusPolling();
           // Fetch full metadata so notes/logs are visible immediately in status panel.
           const full = await api(`/runs/${runId}`);
           renderRunStatus(full);

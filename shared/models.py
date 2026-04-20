@@ -18,6 +18,7 @@ class RunMetadata(BaseModel):
     run_id: str
     project_id: str
     status: RunStatus = "created"
+    progress_pct: int = 0
     input_type: InputType = "rsem_expected_counts"
     created_at: datetime
     updated_at: datetime

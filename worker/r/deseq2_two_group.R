@@ -135,10 +135,35 @@ plot_df <- res_df[!is.na(res_df$log2FoldChange) & !is.na(res_df$pvalue), ]
 plot_df$neglog10p <- -log10(pmax(plot_df$pvalue, .Machine$double.xmin))
 plot_df$sig <- ifelse(!is.na(plot_df$padj) & plot_df$padj < 0.05, "padj < 0.05", "ns")
 
+# Robust autoscaling for volcano: use central distribution but keep symmetry on x.
+if (nrow(plot_df) > 0) {
+  x_abs <- abs(plot_df$log2FoldChange[is.finite(plot_df$log2FoldChange)])
+  if (length(x_abs) > 0) {
+    x_q <- stats::quantile(x_abs, probs = 0.995, na.rm = TRUE, names = FALSE)
+    x_lim <- max(1, as.numeric(x_q), 0.5 * max(x_abs, na.rm = TRUE))
+  } else {
+    x_lim <- 2
+  }
+  x_limits <- c(-x_lim, x_lim)
+
+  y_vals <- plot_df$neglog10p[is.finite(plot_df$neglog10p)]
+  if (length(y_vals) > 0) {
+    y_q <- stats::quantile(y_vals, probs = 0.995, na.rm = TRUE, names = FALSE)
+    y_top <- max(2, as.numeric(y_q), 0.5 * max(y_vals, na.rm = TRUE))
+  } else {
+    y_top <- 5
+  }
+  y_limits <- c(0, y_top * 1.05)
+} else {
+  x_limits <- c(-2, 2)
+  y_limits <- c(0, 5)
+}
+
 p <- ggplot(plot_df, aes(x = log2FoldChange, y = neglog10p, color = sig)) +
   geom_point(alpha = 0.35, size = 0.7) +
   geom_vline(xintercept = 0, linetype = "dashed") +
   scale_color_manual(values = c("padj < 0.05" = "#d62728", "ns" = "gray50")) +
+  coord_cartesian(xlim = x_limits, ylim = y_limits) +
   theme_bw(base_size = 11) +
   labs(
     title = sprintf("DESeq2: %s vs %s", group_b, group_a),
