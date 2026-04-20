@@ -30,7 +30,9 @@ then run two-group DESeq2 and download results.
 - `GET /runs/{id}/artifacts`
 - `GET /runs/{id}/artifacts/{artifact}`
 
-## Local run (without Docker)
+## Quickstart (local)
+
+### 1) Clone and start API
 
 ```bash
 cd "/Users/eugenechen/Downloads/RNAErnie TP53 plots/cloud_de_app"
@@ -44,6 +46,24 @@ uvicorn backend.app.main:app --reload --port 8000
 Then open [http://localhost:8000](http://localhost:8000).
 
 > `RUN_INLINE=true` runs jobs in-process for local smoke tests.
+
+### 2) Run a real public human dataset test
+
+Use the GEO test pack included in this repo:
+
+- `test_packs/public_gse164073_human/count_matrix.csv`
+- `test_packs/public_gse164073_human/sample_sheet.csv`
+
+In the UI:
+
+1. Create run (any project ID)
+2. Input type: **Raw count matrix**
+3. Upload those two files
+4. Start run with:
+   - `group_a=mock`
+   - `group_b=infected`
+
+Expected result: run completes and generates DESeq2 + GSEA + CIBERSORTx artifacts.
 
 ## Docker compose (API + worker + Redis)
 
